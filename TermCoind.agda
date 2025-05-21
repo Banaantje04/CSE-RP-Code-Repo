@@ -1,20 +1,21 @@
 {-# OPTIONS --guardedness #-}
 
 open import Agda.Builtin.Nat
+open import Agda.Builtin.Bool
 open import Data.List using (List; []; _∷_) 
 open import Data.Product
 open import Function using (case_of_)
 
-data Term : Set where
-    TNat : Nat → Term
-    TVar : Nat → Term
-    TRVar : Nat → Term
-    Abs : Term → Term
-    App : Term → Term → Term
-    LRec : Term → Term → Term
+data Term : (rec : Bool) → Set where
+    TNat : {rec : Bool} → Nat → Term rec
+    TVar : {rec : Bool} → Nat → Term rec
+    TRVar : Term true
+    Abs : {rec : Bool} → Term rec → Term rec
+    App : {rec : Bool} → Term rec → Term rec → Term rec
+    LRec : Term true → Term true → Term false
 
 data TLabel : Set where
-    TLNat TLVar TLAbs TLApp TLLRec : TLabel
+    TLNat TLVar TLRVar TLAbs TLApp TLLRec : TLabel
 
 
 mutual
@@ -23,14 +24,16 @@ mutual
         constructor mkRVar
         field
             label : TLabel
-            subs : resolve label
+            rec : Bool
+            subs : resolve label rec
             
-    resolve : TLabel → Set
-    resolve TLNat = Nat                                 --i don't know if nats should be this way
-    resolve TLVar = RVar                                --either pointing to the tllrec or tlabs
-    resolve TLAbs = Term                                --no closure but substitute
-    resolve TLApp = Term × Term
-    resolve TLLRec = RVar
+    resolve : TLabel → Bool → Set
+    resolve TLNat _ = Nat                                 --i don't know if nats should be this way
+    resolve TLVar _ = Nat
+    resolve TLRVar _ = RVar                                --either pointing to the tllrec or tlabs
+    resolve TLAbs rec = Term rec                                --no closure but substitute
+    resolve TLApp rec = Term rec × Term rec
+    resolve TLLRec _ = RVar
 
     Env : Set
     Env = List RVar
@@ -45,16 +48,16 @@ lookup (x ∷ e) zero = x
 lookup (x ∷ e) (suc n) = lookup e n
 
 
-eval : Env → Term → RVar
+eval : {rec : Bool} → Env → Term rec → RVar
 eval _ (TNat n) .label = TLNat
 eval _ (TNat n) .subs = n
 
 eval e (TVar n) = lookup e n
 
-eval e (TRVar n) = {!   !}
+eval e TRVar = {!   !}
 
 eval e (Abs t) .label = TLAbs
-eval e (Abs t) .subs = t        --todo substitute env into t
+eval e (Abs t) .subs = {!   !}        --todo substitute env into t
 
 eval e (App l a) = {!   !}
 
@@ -66,21 +69,40 @@ eval e (App l a) = {!   !}
 eval e (LRec b i) = {!   !}
 
 
-translate : Term → RVar
+
+translateLRec : Term true → Term true → RVar
+translateLRec _ _ .rec = true
+
+translateLRec r (TNat n) .label = TLNat
+translateLRec r (TNat n) .subs = n
+
+translateLRec r (TVar x) .label = TLVar
+translateLRec r (TVar x) .subs = x
+
+translateLRec r TRVar .label = TLRVar
+translateLRec r TRVar .subs = translateLRec r r
+
+translateLRec r (Abs n) .label = TLAbs
+translateLRec r (Abs n) .subs = n
+
+translateLRec r (App n b) .label = TLApp  
+translateLRec r (App n b) .subs = n , b
+
+
+translate : Term false → RVar
+translate _ .rec = false
+
 translate (TNat n) .label = TLNat
 translate (TNat n) .subs = n
 
-translate (TVar x) = {!   !}
-translate (TVar x) = {!   !}
+translate (TVar x) .label = TLVar
+translate (TVar x) .subs = x
 
-translate (TRVar x) = {!   !}   
-translate (TRVar x) = {!   !}
+translate (Abs n) .label = TLAbs
+translate (Abs n) .subs = n
 
-translate (Abs n) = {!   !}
-translate (Abs n) = {!   !}
+translate (App n b) .label = TLApp  
+translate (App n b) .subs = n , b
 
-translate (App n n₁) = {!   !}  
-translate (App n n₁) = {!   !}
-
-translate (LRec n n₁) = {!   !}
-translate (LRec n n₁) = {!   !}
+translate (LRec r b) .label = TLLRec
+translate (LRec r b) .subs = translateLRec r b
