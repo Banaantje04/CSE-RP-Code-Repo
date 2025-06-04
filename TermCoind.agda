@@ -19,7 +19,7 @@ data TLabel : Set where
 
 
 mutual
-    record RVar : Set where
+    record RTerm : Set where
         coinductive
         constructor mkRVar
         field
@@ -30,47 +30,29 @@ mutual
     resolve : TLabel → Bool → Set
     resolve TLNat _ = Nat                                 --i don't know if nats should be this way
     resolve TLVar _ = Nat
-    resolve TLRVar _ = RVar                                --either pointing to the tllrec or tlabs
+    resolve TLRVar _ = RTerm                                --either pointing to the tllrec or tlabs
     resolve TLAbs rec = Term rec                                --no closure but substitute
     resolve TLApp rec = Term rec × Term rec
-    resolve TLLRec _ = RVar
+    resolve TLLRec _ = RTerm
 
-    Env : Set
-    Env = List RVar
-open RVar public
+open RTerm public
 
---coinductive in env, then rest inductive, maybe Delay, outside of eval (return rvar) then convert
+data Val : Set where
+    nat : Nat → Val
 
-lookup : Env → Nat → RVar
-lookup [] n .label = TLNat       --maybe introduce an error rvar or intermediate? for now just number lol
-lookup [] n .subs = 999
-lookup (x ∷ e) zero = x
-lookup (x ∷ e) (suc n) = lookup e n
+Env : Set
+Env = List RTerm
 
+eval : Env → RTerm → Val
+eval e t with (label t , rec t) , subs t
+... | (TLNat , n) , r = {!nat (subs t)  !}
+... | _ = {!   !}
 
-eval : {rec : Bool} → Env → Term rec → RVar
-eval _ (TNat n) .label = TLNat
-eval _ (TNat n) .subs = n
-
-eval e (TVar n) = lookup e n
-
-eval e TRVar = {!   !}
-
-eval e (Abs t) .label = TLAbs
-eval e (Abs t) .subs = {!   !}        --todo substitute env into t
-
-eval e (App l a) = {!   !}
-
--- eval e (App l a) = let r = eval e l in
---     case label r of λ where
---         TLAbs → {! eval ((mkRVar ? ?) ∷ (proj₁ (subs r))) (proj₂ (subs r))  !} 
---         _ → {!   !}
-
-eval e (LRec b i) = {!   !}
+-- evalNat : (l : TLabel) → RTerm .label {TLNat} .subs {Nat} → Nat
+-- evalNat = ?
 
 
-
-translateLRec : Term true → Term true → RVar
+translateLRec : Term true → Term true → RTerm
 translateLRec _ _ .rec = true
 
 translateLRec r (TNat n) .label = TLNat
@@ -89,7 +71,7 @@ translateLRec r (App n b) .label = TLApp
 translateLRec r (App n b) .subs = n , b
 
 
-translate : Term false → RVar
+translate : Term false → RTerm
 translate _ .rec = false
 
 translate (TNat n) .label = TLNat
@@ -106,3 +88,35 @@ translate (App n b) .subs = n , b
 
 translate (LRec r b) .label = TLLRec
 translate (LRec r b) .subs = translateLRec r b
+
+
+
+
+-- --coinductive in env, then rest inductive, maybe Delay, outside of eval (return rvar) then convert
+
+-- lookup : Env → Nat → RTerm
+-- lookup [] n .label = TLNat       --maybe introduce an error rvar or intermediate? for now just number lol
+-- lookup [] n .subs = 999
+-- lookup (x ∷ e) zero = x
+-- lookup (x ∷ e) (suc n) = lookup e n
+
+
+-- eval : {rec : Bool} → Env → Term rec → RTerm
+-- eval _ (TNat n) .label = TLNat
+-- eval _ (TNat n) .subs = n
+
+-- eval e (TVar n) = lookup e n
+
+-- eval e TRVar = {!   !}
+
+-- eval e (Abs t) .label = TLAbs
+-- eval e (Abs t) .subs = {!   !}        --todo substitute env into t
+
+-- eval e (App l a) = {!   !}
+
+-- -- eval e (App l a) = let r = eval e l in
+-- --     case label r of λ where
+-- --         TLAbs → {! eval ((mkRVar ? ?) ∷ (proj₁ (subs r))) (proj₂ (subs r))  !} 
+-- --         _ → {!   !}
+
+-- eval e (LRec b i) = {!   !}
