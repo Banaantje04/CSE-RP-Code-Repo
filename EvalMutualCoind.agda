@@ -26,13 +26,17 @@ mutual
 
     record RTerm : Set where
         coinductive
+        constructor RTermCtr
         field
             term : ITerm
 open RTerm
 
+Env : Set
+Env = List ITerm
+
 data Val : Set where --todo maybe add error val
     nat : Nat → Val
-    abs : ITerm → Val
+    abs : ITerm → Env → Val
 
 mutual
     data IVal : Set where
@@ -45,14 +49,18 @@ mutual
             rec : IVal
 open RVal
 
-Env : Set
-Env = List ITerm
-
-subst : Env → ITerm → ITerm
-subst [] _ = ITNat 999
-subst (v ∷ e) (ITVar zero) = v
-subst (v ∷ e) (ITVar (suc n)) = subst e (ITVar n)
-subst (v ∷ e) t = t
+--hard to fill the holes in this, so function closures instead of substitution
+-- subst : Env → ITerm → ITerm
+-- subst [] t = t
+-- subst (v ∷ e) (ITVar zero) = v
+-- subst (v ∷ e) (ITVar (suc n)) = subst e (ITVar n)
+-- subst (v ∷ e) (ITAbs t) = {!   !}
+-- subst e₁@(v ∷ e) (ITApp t t₁) = ITApp (subst {!   !} t) (subst e₁ t₁)
+-- subst e₁@(v ∷ e) (ITLRec x) = ITLRec substLRec
+--     where
+--         substLRec : RTerm
+--         substLRec .term = subst e₁ (term x)
+-- subst (v ∷ e) t = t
 
 lookup : Env → Nat → ITerm
 lookup [] n = ITNat 999
@@ -60,36 +68,30 @@ lookup (x ∷ e) zero = x
 lookup (x ∷ e) (suc n) = lookup e n
 
 mutual
-    {-# TERMINATING #-}  --todo remove this, i have this mostly to be able to continue
+    -- {-# TERMINATING #-}  --todo remove this, i have this mostly to be able to continue
     eval : Env → ITerm → IVal
     eval e (ITNat x) = concrete (nat x)
     eval e (ITVar x) = delay (mkRVal e (lookup e x))
     eval e (ITRVar x) = delay (mkRVal e (term x))
-    eval e (ITAbs t) = concrete (abs (subst e t))
-    eval e (ITApp t a) = delay (applyFunR e t a)
+    eval e (ITAbs t) = concrete (abs t e)
+    eval e (ITApp t a) = delay applyFunR
         where
-            applyFunR : Env → ITerm → ITerm → RVal
-            applyFunR e t a .rec = applyFunction e (delay (mkRVal e t)) a
-    -- eval e (ITApp t a) = case eval e t of λ where
-    --     (concrete (abs t)) → delay (mkRVal (a ∷ e) t)
-    --     (delay t) → {!   !}
-    --     n → n
-        -- case eval e t of λ where
-        -- (abs t) → eval (a ∷ e) t
-        -- n → n
-        --introduce as many delays as i run into
+            applyFunR : RVal
+            applyFunR .rec = applyFunction (delay (mkRVal e t)) a
     eval e (ITLRec x) = delay (mkRVal e (term x))
 
     mkRVal : Env → ITerm → RVal
     mkRVal e r .rec = eval e r
 
-    applyFunction : Env → IVal → ITerm → IVal
-    applyFunction e (concrete (abs t)) a = delay (mkRVal (a ∷ e) t)
-    applyFunction e (delay x) a = delay (applyFunctionC e x a)
-    applyFunction e n a = concrete (nat 999)
+    applyFunction : IVal → ITerm → IVal
+    applyFunction (concrete (abs t e₂)) a = delay (mkRVal (a ∷ e₂) t)
+    applyFunction (delay x) a = delay applyFunctionC
+        where
+            applyFunctionC : RVal
+            applyFunctionC .rec = applyFunction (rec x) a
+    applyFunction n a = concrete (nat 999)
 
-    applyFunctionC : Env → RVal → ITerm → RVal
-    applyFunctionC e t a .rec = applyFunction e (rec t) a
+
 
 mutual
     translateLRec : Term true → Term true → ITerm
@@ -99,10 +101,8 @@ mutual
     translateLRec r (Abs n) = ITAbs (translateLRec r n)
     translateLRec r (App n b) = ITApp (translateLRec r n) (translateLRec r b)
 
-
     mkRTerm : Term true → Term true → RTerm
     mkRTerm r b .term = translateLRec r b
-
 
 translate : Term false → ITerm
 translate (TNat n) = ITNat n
