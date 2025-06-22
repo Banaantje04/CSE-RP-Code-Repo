@@ -4,9 +4,8 @@
 
 \begin{code}
 {-# OPTIONS --guardedness #-}
-open import Agda.Builtin.Nat
 
-module productivitybreak where
+module mutualcoinduct where
 
 \end{code}
 
@@ -26,13 +25,14 @@ open Stream
 id : {A : Set} → A → A
 id x = x
 
-x : Nat
-x = id (9)
+mutual
+  repeat : {A : Set} → A → Stream A
+  repeat f .head  = f
+  repeat f .tail  = other f
 
-repeat : {A : Set} → A → Stream A
-repeat f .head = f
-repeat f .tail = id (repeat f)
-
+  other : {A : Set} → A → Stream A
+  other f .head = f
+  other f .tail = repeat f
 \end{code}
 
 \end{document}
